@@ -1,130 +1,210 @@
 # Secure shelter siem stack (under construction)
 
-A ready-to-use, hardened SIEM stack for shelters and crisis centres: Monitors network and endpoints for intrusions, 
-stalkerware, and other abuseware — with pre‑built dashboards and daily threat intel updates.
+A ready‑to‑use, TLS‑encrypted, and pre‑dashboarded Security Information & Event Management (SIEM) stack for shelters.
+It detects common malware, network anomalies, and stalkerware (BadBox, BadBox2, mFly, FlexiSpy, Spynger, etc.) right from first boot.
 
----
+Includes:
 
-## Features
-
-- Wazuh + Elasticsearch + Kibana SIEM stack
-- Zeek & Suricata network monitoring with custom stalkerware rules
-- VPN‑only access (WireGuard)
-- TLS between all services
-- Pre‑set RBAC accounts (admin, viewer)
-- Daily rule and intel updates
-- Encrypted nightly backups to local 500 GB disk
-- Pre‑built Kibana dashboards for:
-  - Threat overview
-  - Stalkerware watchlist
-  - Network anomalies
-  - High‑risk devices
+* Wazuh Manager for endpoint & log monitoring
+* Suricata IDS for network intrusion detection
+* Zeek for network analysis
+* Filebeat for log shipping over TLS
+* Elasticsearch with self‑signed TLS
+* Kibana with pre‑loaded dashboards
 
 ---
 
 ## Requirements
 
-**Host system:**
-- Linux server (Debian 12, Ubuntu 22.04 LTS, Rocky Linux 9 tested)
-- Docker + Docker Compose v2
-- Minimum:
-  - CPU: 4 cores (8+ recommended)
-  - RAM: 8 GB (16 GB recommended)
-  - Storage: 200 GB SSD for data + **separate 500 GB disk** for backups
-- **Dedicated sniffing NIC**:
-  - A second network interface card connected to the network you want to monitor
-  - Must not have an IP address assigned
-  - Example: `eth1` on Linux
-  - Can be a USB 3.0 Gigabit Ethernet adapter if no free PCIe slot
-- Internet connection (for rule updates, unless using offline feed)
+Minimum for small shelters (up to 10 monitored devices):
 
-**Client devices (for VPN access):**
-
-- WireGuard client installed (Windows, macOS, Linux, iOS, or Android)
+* 4 CPU cores
+* 8 GB RAM (16 GB recommended)
+* 200 GB SSD storage (logs grow quickly)
+* One dedicated NIC in promiscuous mode for packet capture
+* Linux host (Ubuntu 22.04 LTS recommended)
+* Docker & Docker Compose installed
 
 ---
 
-## quick start
+## First‑time setup
 
-1. Clone the repository:
+### Clone the repository
 
 ```bash
-git clone https://github.com/yourorg/shelter-siem-secure.git
-cd shelter-siem-secure
-````
+git clone https://github.com/ninabarzh/secure-shelter-siem-stack.git
+cd secure-shelter-siem-stack
+```
 
-2. Create `.env` from example and set your sniffing NIC name:
+### Copy and edit environment variables
 
 ```bash
 cp .env.example .env
 nano .env
-# Set SNIFFING_INTERFACE=eth1 (or your NIC)
 ```
 
-3. Deploy the stack:
+Set secure passwords for:
+
+* `ELASTIC_PASSWORD`
+* `KIBANA_PASSWORD`
+* `WAZUH_PASSWORD`
+
+---
+
+## Generate TLS certificates
+
+Run:
+
+```bash
+./scripts/gen-certs.sh
+```
+
+This will create:
+
+```
+config/elasticsearch/certs/elastic-stack-ca.p12
+config/elasticsearch/certs/elastic-certificates.p12
+```
+
+Password: `changeit` (also set in configs — you may change it if desired).
+
+---
+
+## Update detection rules
+
+Fetch latest Suricata rules:
+
+```bash
+./scripts/update-rules.sh
+```
+
+This pulls:
+
+* Emerging Threats (v7.0.3)
+* AbuseCH SSL blacklist
+* Local `custom.rules` for stalkerware
+
+---
+
+## Deploy the stack
 
 ```bash
 ./scripts/deploy.sh
 ```
 
-4. Import the generated VPN config from `./vpn` into your WireGuard client.
+This will:
 
-5. Connect to the VPN, then open in your browser:
-
-* **Kibana:** `https://siem.local:5601`
-* **Wazuh API:** `https://siem.local:55000`
-
----
-
-## Dashboards
-
-After first login, you will see:
-
-* **Threat Overview:** Summary of all alerts
-* **Stalkerware Watchlist:** Detections for BadBox, BadBox2, mFly, FlexiSpy, Spynger, and others
-* **Network Anomalies:** Suricata/Zeek events outside normal patterns
-* **High‑risk Devices:** Endpoints with multiple stalkerware indicators
+* Start Elasticsearch with TLS
+* Start Kibana (will auto‑import dashboards from `config/dashboards/`)
+* Start Wazuh Manager
+* Start Suricata & Zeek
+* Start Filebeat with TLS output to Elasticsearch
 
 ---
 
-## Backups
+## Accessing the dashboards
 
-* Run nightly at 02:00
-* Encrypted with GPG
-* Stored on `/mnt/secure-backup` (500 GB disk)
-* On first run, generates `config/backup/backup-key.gpg`
-* **Copy the key to a USB stick and lock it away** — without it, backups cannot be restored
+Open:
 
-### Restore
+```
+http://<server-ip>:5601
+```
+
+Login:
+
+* Username: `kibana_system` (from `.env`)
+* Password: your chosen `KIBANA_PASSWORD`
+
+You will see:
+
+* Threat Overview: global picture of alerts
+* High Risk Devices: devices with repeated detections
+* Network Anomalies: traffic spikes, suspicious protocols
+* Stalkerware Watchlist: matches on BadBox, mFly, FlexiSpy, Spynger, etc.
+
+---
+
+## Deploy Wazuh agents
+
+On a monitored endpoint:
 
 ```bash
-gpg --import config/backup/backup-key.gpg
-gpg --decrypt /mnt/secure-backup/shelter-siem-YYYY-MM-DD_HH-MM.tar.gz.gpg | tar -xz -C data/
+curl -so wazuh-agent.deb https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_4.12.0-1_amd64.deb \
+ && sudo WAZUH_MANAGER='<server-ip>' dpkg -i ./wazuh-agent.deb \
+ && sudo systemctl enable wazuh-agent --now
 ```
 
 ---
 
-## Maintenance
+## Stopping and restarting
 
-### Update rules manually
+Stop:
 
 ```bash
-./scripts/update-rules.sh
-docker compose restart suricata zeek
+./scripts/stop.sh
 ```
 
-### Update stack
+Restart:
 
 ```bash
-docker compose pull && docker compose up -d
+./scripts/deploy.sh
+```
+
+---
+
+## Restoring from backup
+
+To restore from a previous backup:
+
+```bash
+./scripts/restore-backup.sh
 ```
 
 ---
 
 ## Security notes
 
-* All access is via VPN — never expose ports 9200, 5601, 55000 to the internet
-* Keep the backup disk physically secure
-* Regularly test VPN configs and backups
+* Change all default passwords in `.env` before going live.
+* Keep Elasticsearch TLS certs private (`config/elasticsearch/certs`).
+* Use `./scripts/update-rules.sh` weekly.
+* Monitor disk usage in `./data/elasticsearch` — prune old indices if space runs low.
+
+---
+
+## Network interface requirements
+
+If using Suricata/Zeek in packet capture mode:
+
+* Set `SNIFFING_INTERFACE` in `.env` to your dedicated NIC (e.g., `eth1`).
+* This interface must be in promiscuous mode:
+
+```bash
+sudo ip link set eth1 promisc on
+```
+
+---
+
+## Dashboards included
+
+Location: `config/dashboards/`
+
+* `threat-overview.ndjson`
+* `high-risk-devices.ndjson`
+* `network-anomalies.ndjson`
+* `stalkerware-watchlist.ndjson`
+
+These are auto‑loaded at first Kibana startup.
+
+---
+
+## Rule sources
+
+* Emerging Threats: `https://rules.emergingthreats.net/open/suricata-7.0.3/`
+* AbuseCH SSL Blacklist: `https://sslbl.abuse.ch/blacklist/sslblacklist.rules`
+* Local custom rules: `intel/custom.rules`
+
+---
+
+Ready to monitor, detect, and defend.
 
 
