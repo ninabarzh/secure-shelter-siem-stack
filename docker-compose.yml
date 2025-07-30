@@ -1,0 +1,120 @@
+version: '3.8'
+services:
+  vpn:
+    image: linuxserver/wireguard:latest
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PEERS=admin,viewer
+      - PEERDNS=10.13.13.1
+    volumes:
+      - ./vpn:/config
+    ports:
+      - "51820:51820/udp"
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    env_file: .env
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.verification_mode=certificate
+    volumes:
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+      - ./config/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+    networks:
+      - internal
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.3
+    env_file: .env
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
+      - ./config/kibana/dashboards:/dashboards
+    networks:
+      - internal
+    restart: unless-stopped
+    command: >
+      sh -c "sleep 30 &&
+      for f in /dashboards/*.ndjson; do
+        curl -X POST -u ${KIBANA_USERNAME}:${KIBANA_PASSWORD} -F file=@$f
+        http://localhost:5601/api/saved_objects/_import?overwrite=true -H kbn-xsrf:true
+      done &&
+      /bin/kibana"
+
+  wazuh:
+    image: wazuh/wazuh-manager:4.12.0
+    hostname: wazuh-manager
+    volumes:
+      - ./data/wazuh:/var/ossec/data
+      - ./config/wazuh/ossec.conf:/var/ossec/etc/ossec.conf
+      - ./config/wazuh/local_rules.xml:/var/ossec/etc/rules/local_rules.xml
+    ports:
+      - "1514:1514/udp"
+      - "1515:1515"
+      - "55000:55000"
+    networks:
+      - internal
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.14.3
+    user: root
+    depends_on:
+      - elasticsearch
+      - wazuh
+    volumes:
+      - ./config/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - ./data/wazuh:/var/ossec/data:ro
+    networks:
+      - internal
+    restart: unless-stopped
+
+  zeek:
+    image: blacktop/zeek:6.0
+    network_mode: host
+    environment:
+      - ZEEK_INTERFACE=${SNIFFING_INTERFACE}
+    volumes:
+      - ./data/zeek:/pcap
+      - ./config/zeek:/usr/local/zeek/etc
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    restart: unless-stopped
+
+  suricata:
+    image: jasonish/suricata:7.0.3
+    network_mode: host
+    volumes:
+      - ./config/suricata:/etc/suricata
+      - ./data/suricata:/var/log/suricata
+    environment:
+      - SURICATA_OPTIONS=--af-packet=${SNIFFING_INTERFACE}
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    restart: unless-stopped
+
+  localbackup:
+    image: alpine:3.20
+    volumes:
+      - ./data:/data:ro
+      - /mnt/secure-backup:/backup
+      - ./config/backup:/config
+    entrypoint: sh -c "crond -f -l 2"
+    command: >
+      echo '0 2 * * * /config/run-backup.sh >> /var/log/backup.log 2>&1' > /etc/crontabs/root
+    restart: unless-stopped
+
+networks:
+  internal:
+    driver: bridge

@@ -1,0 +1,3 @@
+{"type":"dashboard","id":"threat-overview","attributes":{"title":"Threat Overview","hits":0,"description":"Summary of alerts by category and timeline","panelsJSON":"[...]"},"references":[]}
+{"type":"visualization","id":"total_alerts_metric","attributes":{"title":"Total Alerts","visState":"{\"type\":\"metric\",\"params\":{\"type\":\"metric\"},\"aggs\":[{\"id\":\"1\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}}]}"},"references":[]}
+{"type":"visualization","id":"alerts_by_severity","attributes":{"title":"Alerts by Severity","visState":"{\"type\":\"pie\",\"params\":{},\"aggs\":[{\"id\":\"1\",\"type\":\"terms\",\"schema\":\"segment\",\"params\":{\"field\":\"alert.level\"}},{\"id\":\"2\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}}]}"},"references":[]}

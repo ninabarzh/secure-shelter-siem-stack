@@ -1,0 +1,7 @@
+<group name="stalkerware">
+  <rule id="100100" level="10">
+    <if_sid>100000</if_sid>
+    <match>BadBox|BadBox2|mFly|FlexiSpy|Spynger</match>
+    <description>Stalkerware detection</description>
+  </rule>
+</group>

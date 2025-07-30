@@ -1,0 +1,16 @@
+# Kibana server settings
+server.name: shelter-kibana
+server.host: "0.0.0.0"
+server.publicBaseUrl: http://localhost:5601
+
+# Elasticsearch connection over TLS
+elasticsearch.hosts: ["https://elasticsearch:9200"]
+elasticsearch.username: "${ELASTIC_USERNAME}"
+elasticsearch.password: "${ELASTIC_PASSWORD}"
+
+# Accept self-signed cert from Elasticsearch
+elasticsearch.ssl.verificationMode: none
+
+# Saved objects / dashboards import location (handled by docker-compose startup script)
+# This directory is mounted at /dashboards inside the Kibana container
+# and imported automatically at startup by our custom command.

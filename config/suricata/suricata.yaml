@@ -1,0 +1,5 @@
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - abusech.rules
+  - emerging.rules
+  - custom.rules

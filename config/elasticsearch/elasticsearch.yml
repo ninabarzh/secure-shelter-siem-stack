@@ -1,0 +1,29 @@
+node.name: shelter-es-node
+cluster.name: shelter-siem
+network.host: 0.0.0.0
+http.port: 9200
+discovery.type: single-node
+
+xpack.security.enabled: true
+
+xpack.security.http.ssl.enabled: true
+xpack.security.http.ssl.keystore.path: certs/elastic-certificates.p12
+xpack.security.http.ssl.keystore.password: changeit
+xpack.security.http.ssl.truststore.path: certs/elastic-certificates.p12
+xpack.security.http.ssl.truststore.password: changeit
+
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: certs/elastic-certificates.p12
+xpack.security.transport.ssl.keystore.password: changeit
+xpack.security.transport.ssl.truststore.path: certs/elastic-certificates.p12
+xpack.security.transport.ssl.truststore.password: changeit
+
+path.data: /usr/share/elasticsearch/data
+path.logs: /usr/share/elasticsearch/logs
+
+indices.query.bool.max_clause_count: 2048
+action.destructive_requires_name: true
+bootstrap.memory_lock: true
+
+cluster.routing.allocation.enable: all

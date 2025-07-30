@@ -1,0 +1,2 @@
+{"type":"dashboard","id":"network-anomalies","attributes":{"title":"Network Anomalies","hits":0,"description":"Zeek and Suricata anomaly events","panelsJSON":"[...]"},"references":[]}
+{"type":"visualization","id":"zeek_anomalies_over_time","attributes":{"title":"Zeek Anomalies","visState":"{\"type\":\"line\",\"params\":{},\"aggs\":[{\"id\":\"1\",\"type\":\"date_histogram\",\"schema\":\"segment\",\"params\":{\"field\":\"@timestamp\",\"interval\":\"hour\"}},{\"id\":\"2\",\"type\":\"count\",\"schema\":\"metric\",\"params\":{}}]}"},"references":[]}
