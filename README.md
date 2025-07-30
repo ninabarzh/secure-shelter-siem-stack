@@ -1,39 +1,40 @@
 # Secure shelter siem stack (under construction)
 
 A ready‑to‑use, TLS‑encrypted, and pre‑dashboarded Security Information & Event Management (SIEM) stack for shelters.
-It detects common malware, network anomalies, and stalkerware (BadBox, BadBox2, mFly, FlexiSpy, Spynger, etc.) right from first boot.
+Detects common malware, network anomalies, and stalkerware (BadBox, BadBox2, mFly, FlexiSpy, Spynger, etc.) right from first boot.
 
 Includes:
 
-* Wazuh Manager for endpoint & log monitoring
-* Suricata IDS for network intrusion detection
-* Zeek for network analysis
-* Filebeat for log shipping over TLS
-* Elasticsearch with self‑signed TLS
-* Kibana with pre‑loaded dashboards
+* **WireGuard VPN** for secure remote access
+* **Wazuh Manager** for endpoint & log monitoring
+* **Suricata IDS** for network intrusion detection
+* **Zeek** for network analysis
+* **Filebeat** for log shipping over TLS
+* **Elasticsearch** with self‑signed TLS
+* **Kibana** with pre‑loaded dashboards
 
 ---
 
-## Requirements
+## 1. Requirements
 
 Minimum for small shelters (up to 10 monitored devices):
 
 * 4 CPU cores
 * 8 GB RAM (16 GB recommended)
 * 200 GB SSD storage (logs grow quickly)
-* One dedicated NIC in promiscuous mode for packet capture
+* One **dedicated NIC** in promiscuous mode for packet capture
 * Linux host (Ubuntu 22.04 LTS recommended)
 * Docker & Docker Compose installed
 
 ---
 
-## First‑time setup
+## 2. First‑time setup
 
 ### Clone the repository
 
 ```bash
-git clone https://github.com/ninabarzh/secure-shelter-siem-stack.git
-cd secure-shelter-siem-stack
+git clone https://example.org/shelter-siem-stack.git
+cd shelter-siem-stack
 ```
 
 ### Copy and edit environment variables
@@ -51,7 +52,46 @@ Set secure passwords for:
 
 ---
 
-## Generate TLS certificates
+## 3. Start the WireGuard VPN (required)
+
+All access to Kibana, Elasticsearch, and Wazuh is **through the VPN** — nothing is exposed to the public internet.
+
+From the repo root:
+
+```bash
+docker-compose up -d vpn
+```
+
+The VPN server listens on UDP/51820.
+The default VPN subnet gateway is `10.13.13.1`.
+
+---
+
+## 4. Add VPN peers (staff, responders, remote agents)
+
+To add a new peer:
+
+```bash
+./vpn/add-peer.sh <peer-name>
+```
+
+Example:
+
+```bash
+./vpn/add-peer.sh alice
+```
+
+This will:
+
+* Create a WireGuard peer named `alice`
+* Assign it an IP in the VPN subnet
+* Save the configuration to `vpn/alice.conf`
+
+**Send `alice.conf` securely** to the user — they can import it into the WireGuard client on Windows, macOS, Linux, Android, or iOS.
+
+---
+
+## 5. Generate TLS certificates for Elasticsearch
 
 Run:
 
@@ -59,18 +99,18 @@ Run:
 ./scripts/gen-certs.sh
 ```
 
-This will create:
+Creates:
 
 ```
 config/elasticsearch/certs/elastic-stack-ca.p12
 config/elasticsearch/certs/elastic-certificates.p12
 ```
 
-Password: `changeit` (also set in configs — you may change it if desired).
+Password is set in `.env` — change it if you wish.
 
 ---
 
-## Update detection rules
+## 6. Update detection rules
 
 Fetch latest Suricata rules:
 
@@ -78,105 +118,79 @@ Fetch latest Suricata rules:
 ./scripts/update-rules.sh
 ```
 
-This pulls:
+Sources:
 
 * Emerging Threats (v7.0.3)
 * AbuseCH SSL blacklist
-* Local `custom.rules` for stalkerware
+* Local `custom.rules` for stalkerware detection
 
 ---
 
-## Deploy the stack
+## 7. Deploy the SIEM stack
 
 ```bash
 ./scripts/deploy.sh
 ```
 
-This will:
+Starts:
 
-* Start Elasticsearch with TLS
-* Start Kibana (will auto‑import dashboards from `config/dashboards/`)
-* Start Wazuh Manager
-* Start Suricata & Zeek
-* Start Filebeat with TLS output to Elasticsearch
+* Elasticsearch with TLS
+* Kibana (imports dashboards from `config/dashboards/`)
+* Wazuh Manager
+* Suricata & Zeek
+* Filebeat with TLS to Elasticsearch
 
 ---
 
-## Accessing the dashboards
+## 8. Access dashboards (via VPN)
 
-Open:
+Connect to the VPN with your peer config, then open:
 
 ```
-http://<server-ip>:5601
+http://10.13.13.1:5601
 ```
 
 Login:
 
-* Username: `kibana_system` (from `.env`)
-* Password: your chosen `KIBANA_PASSWORD`
+* **Username:** `kibana_system` (from `.env`)
+* **Password:** your `KIBANA_PASSWORD`
 
-You will see:
+Dashboards available:
 
-* Threat Overview: global picture of alerts
-* High Risk Devices: devices with repeated detections
-* Network Anomalies: traffic spikes, suspicious protocols
-* Stalkerware Watchlist: matches on BadBox, mFly, FlexiSpy, Spynger, etc.
+* **Threat Overview**: alerts across all sources
+* **High Risk Devices**: endpoints with repeated detections
+* **Network Anomalies**: suspicious traffic patterns
+* **Stalkerware Watchlist**: detections for BadBox, mFly, FlexiSpy, Spynger
 
 ---
 
-## Deploy Wazuh agents
+## 9. Deploy Wazuh agents
 
-On a monitored endpoint:
+On a monitored endpoint (inside VPN or local network):
 
 ```bash
 curl -so wazuh-agent.deb https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_4.12.0-1_amd64.deb \
- && sudo WAZUH_MANAGER='<server-ip>' dpkg -i ./wazuh-agent.deb \
+ && sudo WAZUH_MANAGER='10.13.13.1' dpkg -i ./wazuh-agent.deb \
  && sudo systemctl enable wazuh-agent --now
 ```
 
 ---
 
-## Stopping and restarting
+## 10. Maintenance
 
-Stop:
-
-```bash
-./scripts/stop.sh
-```
-
-Restart:
-
-```bash
-./scripts/deploy.sh
-```
+* **Stop stack**: `./scripts/stop.sh`
+* **Backup data**: runs nightly to `/mnt/secure-backup`
+* **Restore backup**: `./scripts/restore-backup.sh`
+* **Update rules weekly**: `./scripts/update-rules.sh`
 
 ---
 
-## Restoring from backup
-
-To restore from a previous backup:
-
-```bash
-./scripts/restore-backup.sh
-```
-
----
-
-## Security notes
-
-* Change all default passwords in `.env` before going live.
-* Keep Elasticsearch TLS certs private (`config/elasticsearch/certs`).
-* Use `./scripts/update-rules.sh` weekly.
-* Monitor disk usage in `./data/elasticsearch` — prune old indices if space runs low.
-
----
-
-## Network interface requirements
+## 11. Network interface requirements
 
 If using Suricata/Zeek in packet capture mode:
 
-* Set `SNIFFING_INTERFACE` in `.env` to your dedicated NIC (e.g., `eth1`).
-* This interface must be in promiscuous mode:
+* Set `SNIFFING_INTERFACE` in `.env` (e.g., `eth1`)
+* Put interface in promiscuous mode:
 
 ```bash
 sudo ip link set eth1 promisc on
@@ -184,24 +198,12 @@ sudo ip link set eth1 promisc on
 
 ---
 
-## Dashboards included
+## 12. Security notes
 
-Location: `config/dashboards/`
-
-* `threat-overview.ndjson`
-* `high-risk-devices.ndjson`
-* `network-anomalies.ndjson`
-* `stalkerware-watchlist.ndjson`
-
-These are auto‑loaded at first Kibana startup.
-
----
-
-## Rule sources
-
-* Emerging Threats: `https://rules.emergingthreats.net/open/suricata-7.0.3/`
-* AbuseCH SSL Blacklist: `https://sslbl.abuse.ch/blacklist/sslblacklist.rules`
-* Local custom rules: `intel/custom.rules`
+* Change all default passwords in `.env` before deployment
+* Store VPN peer configs securely
+* Keep Elasticsearch TLS certs private
+* Monitor disk usage (`./data/elasticsearch`) — prune old indices when needed
 
 ---
 
