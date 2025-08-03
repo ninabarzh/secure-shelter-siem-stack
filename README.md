@@ -15,7 +15,7 @@ Includes:
 
 ---
 
-## 1. Requirements
+## Requirements
 
 Minimum for small shelters (up to 10 monitored devices):
 
@@ -28,16 +28,16 @@ Minimum for small shelters (up to 10 monitored devices):
 
 ---
 
-## 2. First‑time setup
+## First‑time setup
 
-### Clone the repository
+### 1. Clone the repository
 
 ```bash
-git clone https://example.org/shelter-siem-stack.git
-cd shelter-siem-stack
+git clone https://github.com/ninabarzh/secure-shelter-siem-stack.git
+cd secure-shelter-siem-stack
 ```
 
-### Copy and edit environment variables
+## 2. Copy and edit environment variables
 
 ```bash
 cp .env.example .env
