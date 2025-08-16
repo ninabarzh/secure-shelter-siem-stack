@@ -9,7 +9,8 @@ elasticsearch.username: "${ELASTIC_USERNAME}"
 elasticsearch.password: "${ELASTIC_PASSWORD}"
 
 # Accept self-signed cert from Elasticsearch
-elasticsearch.ssl.verificationMode: none
+elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+elasticsearch.ssl.verificationMode: certificate
 
 # Saved objects / dashboards import location (handled by docker-compose startup script)
 # This directory is mounted at /dashboards inside the Kibana container

@@ -1,6 +1,7 @@
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: elasticsearch
     env_file: .env
     environment:
       - discovery.type=single-node
@@ -14,36 +15,31 @@ services:
       - ./config/elasticsearch/certs:/usr/share/elasticsearch/config/certs
     networks:
       - internal
+    ports:
+      - "9200:9200"
     restart: unless-stopped
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.14.3
-    env_file: .env
-    depends_on:
-      - elasticsearch
-    volumes:
-      - ./config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml
-      - ./config/kibana/dashboards:/dashboards
-    networks:
-      - internal
+    container_name: secure-shelter-siem-stack-kibana-1
+    restart: unless-stopped
     ports:
       - "5601:5601"
-    restart: unless-stopped
-    command: >
-      sh -c '
-        echo "Waiting for Elasticsearch to be ready...";
-        until curl -k -s -u ${KIBANA_USERNAME}:${KIBANA_PASSWORD} https://elasticsearch:9200/ > /dev/null; do
-          sleep 5;
-        done;
-        echo "Elasticsearch ready, importing dashboards...";
-        for f in /dashboards/*.ndjson; do
-          curl -X POST -u ${KIBANA_USERNAME}:${KIBANA_PASSWORD} -F file=@$f http://localhost:5601/api/saved_objects/_import?overwrite=true -H kbn-xsrf:true;
-        done;
-        /bin/kibana
-      '
+    environment:
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=https://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_SYSTEM_PASSWORD}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/kibana/config/certs/ca/ca.crt
+    volumes:
+      - ./config/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+      - ./config/elasticsearch/certs:/usr/share/kibana/config/certs:ro
+    depends_on:
+      - elasticsearch
 
   zeek:
-    image: blacktop/zeek:latest   # updated to a valid image
+    image: blacktop/zeek:latest
+    container_name: zeek
     network_mode: host
     environment:
       - ZEEK_INTERFACE=${SNIFFING_INTERFACE}
@@ -58,6 +54,7 @@ services:
 
   suricata:
     image: jasonish/suricata:7.0.3
+    container_name: suricata
     network_mode: host
     volumes:
       - ./config/suricata:/etc/suricata
